@@ -10,7 +10,11 @@ https://github.com/mlflow/mlflow-export-import
 
 Uses Repository Secrets and Variables.
 
+![](img/github_actions_secrets.png)]
+
+![](img/github_actions_variables.png)]
+
 ## Method 2: export_import_using_dispatch_input.yml
 
-Uses Repository Secrets and Workflow dispatch input.
+Uses Repository Secrets and Workflow dispatch input (as part of yaml file).
 
