@@ -1,0 +1,98 @@
+# Name of the workflow
+name: Model Export Import Event Input
+
+# Trigger the workflow manually through the GitHub UI and accept input parameters
+on: 
+  workflow_dispatch:
+    inputs:
+      model_name:
+        description: 'Model Name' # Input for the name of the model to export (source_catalog.schema.model)
+        required: true
+        default: 'gannychan.rawdata.gc_co_model'
+      des_model_name:
+        description: 'Destination Model Name' # Input for the name of the destination model (des_catalog.schema.model)
+        required: true
+        default: 'gannychan1.default.gc_co_model1'
+      experiment_name:
+        description: 'Experiment Name' # Input for the name of the experiment associated with the model
+        required: true
+        default: 'gc_co_model_experiment1'
+      stages:
+        description: 'Stages' # Input for stages to export; None means all stages
+        required: false
+        default: 'None'
+      export_latest_version_only:
+        description: 'Export Latest Version Only' # Input for whether to export only the latest version of the model
+        required: false
+        default: 'False'
+      notebook_format:
+        description: 'Notebook Format' # Input for the format of the notebooks
+        required: false
+        default: 'SOURCE'
+
+jobs:
+  export-import-model:
+    runs-on: ubuntu-latest # Specify the environment to run this job, using the latest Ubuntu version
+
+    env:
+      # Environment variables sourced from the workflow dispatch inputs
+      MODEL_NAME: ${{ github.event.inputs.model_name }} # Model name provided by the user
+      DES_MODEL_NAME: ${{ github.event.inputs.des_model_name }} # Destination model name provided by the user
+      EXPERIMENT_NAME: ${{ github.event.inputs.experiment_name }} # Experiment name provided by the user
+      TMP_FOLDER_NAME: "/tmp/${{ github.event.inputs.model_name }}" # Temporary folder for storing the exported model
+      EXPERIMENT_PATH: "/Shared/${{ github.event.inputs.experiment_name }}" # Path to the experiment in Databricks
+      STAGES: ${{ github.event.inputs.stages }} # Stages to export, provided by the user
+      EXPORT_LATEST_VERSION_ONLY: ${{ github.event.inputs.export_latest_version_only }} # Export latest version only, provided by the user
+      NOTEBOOK_FORMAT: ${{ github.event.inputs.notebook_format }} # Notebook format, provided by the user
+
+      # Environment variables sourced from GitHub Secrets for secure access
+      DATABRICKS_SOURCE_HOST: ${{ secrets.DATABRICKS_SOURCE_HOST }}
+      DATABRICKS_SOURCE_TOKEN: ${{ secrets.DATABRICKS_SOURCE_TOKEN }}
+      DATABRICKS_DESTINATION_HOST: ${{ secrets.DATABRICKS_DESTINATION_HOST }}
+      DATABRICKS_DESTINATION_TOKEN: ${{ secrets.DATABRICKS_DESTINATION_TOKEN }}
+
+    steps:
+      # Step 1: Check out the code from the repository
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python with the specified version (3.11)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install the mlflow-export-import library from GitHub
+      - name: Install mlflow-export-import library
+        run:
+          pip install git+https://github.com/mlflow/mlflow-export-import/#egg=mlflow-export-import
+
+      # Step 4: Display the name of the temporary folder for debugging
+      - name: Displaying temporary folder name
+        run: |
+          echo "Temporary folder: ${{ env.TMP_FOLDER_NAME }}"
+
+      # Step 5: Create the temporary folder if it doesn't already exist
+      - name: Creating a Temp folder
+        run: |
+          mkdir -p ${{ env.TMP_FOLDER_NAME }}
+
+      # Step 6: Export the model from the source Databricks workspace
+      - name: Exporting given model
+        run: |
+          export MLFLOW_TRACKING_URI=databricks-uc
+          export DATABRICKS_HOST=${{ env.DATABRICKS_SOURCE_HOST }}
+          export DATABRICKS_TOKEN=${{ env.DATABRICKS_SOURCE_TOKEN }}
+          export-model --output-dir ${{ env.TMP_FOLDER_NAME }} --model ${{ env.MODEL_NAME }} --notebook-formats ${{ env.NOTEBOOK_FORMAT }} --export-latest-versions ${{ env.EXPORT_LATEST_VERSION_ONLY }} --stages ${{ env.STAGES }}
+
+      # Step 7: List the contents of the temporary folder to verify the export
+      - name: Listing temp model folder
+        run: ls -lah ${{ env.TMP_FOLDER_NAME }}
+
+      # Step 8: Import the model into the destination Databricks workspace
+      - name: Importing the model
+        run: |
+          export MLFLOW_TRACKING_URI=databricks-uc
+          export DATABRICKS_HOST=${{ env.DATABRICKS_DESTINATION_HOST }}
+          export DATABRICKS_TOKEN=${{ env.DATABRICKS_DESTINATION_TOKEN }}
+          import-model --input-dir ${{ env.TMP_FOLDER_NAME }} --model ${{ env.DES_MODEL_NAME }} --experiment-name ${{ env.EXPERIMENT_PATH }} --delete-model True --verbose True
