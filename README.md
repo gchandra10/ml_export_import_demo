@@ -1,6 +1,6 @@
 # Unity Catalog : Export Import Ml Models
 
-## Using Github Actions copy ML Models from one UC Metastore to another UC Metastore.
+### Using Github Actions, copy ML Models from one UC Metastore to another UC Metastore.
 
 This demo uses the following open source tool.
 
