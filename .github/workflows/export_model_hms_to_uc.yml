@@ -1,5 +1,5 @@
 # Name of the workflow
-name: Model Export Import Event Input
+name: Model HMS to UC
 
 # Trigger the workflow manually through the GitHub UI and accept input parameters
 on: 
